@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+  build:
+    commands:
+      - echo Build started on `date`
+      - aws s3 cp --recursive  Personas s3://${BUILD_ARTIFACT_BUCKET}/Personas/ --acl bucket-owner-full-control --sse aws:kms --sse-kms-key-id ${ARTIFACT_KMS_KEY}  
+  post_build:
+    commands:
+      - echo Build completed on `date`
+artifacts:
+  files:
+    - Personas/*.yml

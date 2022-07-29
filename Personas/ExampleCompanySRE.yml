@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SRE access to ExampleCompany
+
+Parameters: 
+  SSOInstanceARN: 
+    Type: String 
+    Description: SSO instance ARN
+
+
+Resources:
+  ExampleCompanySRE:
+    Type: AWS::SSO::PermissionSet
+    Properties: 
+      Description: SRE Access - (Medium Level Access)
+      InstanceArn: !Ref SSOInstanceARN
+      ManagedPolicies: 
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      InlinePolicy: |-
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+                "Sid": "ACMDeployAccess",
+                "Effect": "Allow",
+                "Action": "acm:*",
+                "Resource": "*"
+            },
+            {
+                "Sid": "Dynamo",
+                "Effect": "Allow",
+                "Action": "dynamodb:*",
+                "Resource": "*"
+            },
+            {
+                "Sid": "lambda",
+                "Effect": "Allow",
+                "Action": "lambda:*",
+                "Resource": "*"
+            },
+            {
+                "Sid": "cloudwatch",
+                "Effect": "Allow",
+                "Action": "cloudwatch:*",
+                "Resource": "*"
+            }, 
+            {
+                "Sid": "ec2",
+                "Effect": "Allow",
+                "Action": "ec2:*",
+                "Resource": "*"
+            }
+          ]
+        }
+      Name: ExampleCompanySRE
+      SessionDuration: "PT1H"
+      Tags: 
+      - Key: "AppID"
+        Value: "1"
+      - Key: "Classification"
+        Value: "Confidential"
+      - Key: "SupportTeam"
+        Value: "devops@examplecompany.io"
+
+
+
+  
+
+

@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Pipeline SSO Automation 
+
+Parameters: 
+  GithubBranch: 
+    Type: String 
+    Description: Github Branch to pull from
+    Default: main
+  MasterAccountID:
+    Type: String
+    Description: Root account for AWS or Account where SSO sits
+    Default: 1234567890
+  ProjectName:
+    Type: String
+    Description: Project Name for the Pipeline
+    Default: "AWSSSO"
+  ArtifactBucketName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Bucket Name for the Artifact Bucket
+    Default: /examplecompany/S3/SSO/ArtifactBucketName
+
+
+Resources:
+  AWSSSOCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProjectName}-Codebuild"
+      ServiceRole: "{{resolve:ssm:/examplecompany/IAM/SSO/CodeBuildRoleArn:1}}"
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/amazonlinux2-aarch64-standard:2.0"
+        Type: "ARM_CONTAINER"
+        EnvironmentVariables:
+          - Name: BUILD_ARTIFACT_BUCKET
+            Value: "{{resolve:ssm:/examplecompany/S3/SSO/ArtifactBucketName:1}}"
+          - Name: ARTIFACT_KMS_KEY
+            Value: "{{resolve:ssm:/examplecompany/KMS/SSO/ArtifactBucketKeyID:1}}"
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 10
+
+
+  AWSSSOPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: "{{resolve:ssm:/examplecompany/IAM/SSO/CodePipelineRoleArn:1}}"
+      Stages:
+        - Name: Source
+          Actions:
+          - Name: SourceAction
+            ActionTypeId:
+              Version: '1'
+              Owner: AWS
+              Category: Source
+              Provider: CodeStarSourceConnection
+            OutputArtifacts:
+              - Name: SourceArtifact
+            RunOrder: 1
+            Configuration:
+              ConnectionArn: "{{resolve:ssm:/examplecompany/Github/CodeStarConnectionArn:1}}"
+              FullRepositoryId: "DMEvanCT/aws-sso"
+              BranchName: !Ref GithubBranch
+              OutputArtifactFormat: "CODE_ZIP"
+        - Name: Build 
+          Actions: 
+            - Name: !Sub Build-${ProjectName}
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                ProjectName: !Sub "${ProjectName}-Codebuild"
+              RunOrder: 1
+        - Name: Release
+          Actions:
+            - Name: CreateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              InputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                ChangeSetName: ExampleCompany-SSO-ChangeSet
+                Capabilities: CAPABILITY_IAM
+                StackName: ExampleCompany-SSO-Stack
+                TemplatePath: SourceArtifact::template.yml
+                ParameterOverrides: !Sub |-
+                  {
+                    "ArtifactBucketName" : "${ArtifactBucketName}"
+                  }
+                RoleArn: !Sub "arn:${AWS::Partition}:iam::${MasterAccountID}:role/examplecompany/ExampleCompanyCloudformationRole"
+              RoleArn: !Sub "arn:${AWS::Partition}:iam::${MasterAccountID}:role/examplecompany/ExampleCompanyMasterDevopsRole"
+              RunOrder: 1
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              Configuration:
+                StackName: ExampleCompany-SSO-Stack
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: ExampleCompany-SSO-ChangeSet
+                ParameterOverrides: !Sub |-
+                  {
+                    "ArtifactBucketName": "${ArtifactBucketName}"
+                  }
+                RoleArn: !Sub "arn:${AWS::Partition}:iam::${MasterAccountID}:role/examplecompany/ExampleCompanyCloudformationRole"
+              RoleArn: !Sub "arn:${AWS::Partition}:iam::${MasterAccountID}:role/examplecompany/ExampleCompanyMasterDevopsRole"
+              RunOrder: 2
+      ArtifactStore:
+        Type: S3
+        Location: "{{resolve:ssm:/examplecompany/S3/SSO/ArtifactBucketName:1}}"
+        EncryptionKey:
+          Id: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/{{resolve:ssm:/examplecompany/KMS/SSO/ArtifactBucketKeyID:1}}"
+          Type: KMS
+      Name: ExampleCompanySSO-Pipeline
+

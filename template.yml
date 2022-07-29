@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SSO Configuration ExampleCompany
+
+Parameters:
+  SSOInstanceARN:
+    Type: String
+    Description: The SSO instance ARN 
+    Default: "arn:aws:sso:::instance/ssoins-12345678"
+  ArtifactBucketName: 
+    Type: String
+    Description: The name of the bucket to store the artifacts in
+    Default: "codepipleine-sso-artifactbucket-1234fdsas"
+
+
+Resources:
+  ExampleCompanyDeveloper:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      Parameters: 
+        SSOInstanceARN : !Ref SSOInstanceARN
+      Tags: 
+      - Key: "ApplicationID"
+        Value: "1"
+      - Key: "Classification"
+        Value: "Confidential"
+      - Key: "SupportTeam"
+        Value: "devops@examplecompany.io"
+      TemplateURL: !Sub https://s3.amazonaws.com/${ArtifactBucketName}/Personas/ExampleCompanyDeveloper.yml
+      TimeoutInMinutes: 5
+  
+  ExampleCompanySRE:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      Parameters: 
+        SSOInstanceARN : !Ref SSOInstanceARN
+      Tags: 
+      - Key: "ApplicationID"
+        Value: "1"
+      - Key: "Classification"
+        Value: "Confidential"
+      - Key: "SupportTeam"
+        Value: "devops@examplecompany.io"
+      TemplateURL: !Sub https://s3.amazonaws.com/${ArtifactBucketName}/Personas/ExampleCompanySRE.yml
+      TimeoutInMinutes: 5
+  
+

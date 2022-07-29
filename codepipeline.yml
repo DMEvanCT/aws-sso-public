@@ -1,0 +1,364 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CodePipleine Pre Req 
+
+Parameters:
+  MasterAccountID:
+    Type: String
+    Description: Root account for AWS or Account where SSO sits
+    Default: 12345678910
+
+Resources: 
+  GithubSSOConection: 
+    Type: AWS::CodeStarConnections::Connection
+    Properties: 
+      ConnectionName: GithubAWSSSO
+      ProviderType: GitHub
+      Tags: 
+      - Key: "ApplicationID"
+        Value: "1"
+      - Key: "Classification"
+        Value: "Confidential"
+      - Key: "SupportTeam"
+        Value: "devops@examplecompany.io"
+
+  ArtifactBucketKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: Key for Artifact Bucket
+      Enabled: true
+      EnableKeyRotation: true
+      KeyPolicy: 
+        Version: 2012-10-17
+        Id: "kms-key-policy"
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS:  !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: AllowMasterAccount
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${MasterAccountID}:root'
+            Action:
+              - 'kms:Decrypt*'
+              - 'kms:Encrypt'
+              - 'kms:ReEncrypt*'
+              - 'kms:GenerateDataKey*'
+              - 'kms:DescribeKey'
+              - 'kms:List*'
+            Resource: '*'
+      KeyUsage: ENCRYPT_DECRYPT
+      PendingWindowInDays: 7
+      Tags: 
+      - Key: "ApplicationID"
+        Value: "1"
+      - Key: "Classification"
+        Value: "Confidential"
+      - Key: "SupportTeam"
+        Value: "devops@examplecompany.io"
+
+  ArtifactBucketKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties: 
+      AliasName: 'alias/artifactkey'
+      TargetKeyId: !Ref ArtifactBucketKey 
+
+  ArtifactBucket: 
+    Type: AWS::S3::Bucket
+    Properties: 
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyID: {"Fn::GetAtt" : [ArtifactBucketKey, "Arn"] }
+      PublicAccessBlockConfiguration: 
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+      Tags: 
+      - Key: "ApplicationID"
+        Value: "1"
+      - Key: "Classification"
+        Value: "Confidential"
+      - Key: "SupportTeam"
+        Value: "devops@examplecompany.io"
+      VersioningConfiguration:
+        Status: Enabled
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowDevopsAccount
+            Effect: Allow
+            Principal: 
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action:
+              - "s3:*"
+            Resource: 
+              - {"Fn::GetAtt" : [ArtifactBucket, "Arn"] }
+              - !Sub "${ArtifactBucket.Arn}/*"
+          - Sid: AllowMasterAccount
+            Effect: Allow
+            Principal: 
+              AWS: !Sub "arn:${AWS::Partition}:iam::${MasterAccountID}:root"
+            Action:
+                - "s3:PutObject"
+                - "s3:GetObject"
+                - "s3:GetObjectVersion"
+                - "s3:GetBucketAcl"
+                - "s3:GetBucketLocation"
+                - "s3:GetObjectVersion"
+                - "s3:PutObjectAcl"
+                - "s3:GetBucketVersioning"
+                - "s3:ListBucket"
+            Resource: 
+              - {"Fn::GetAtt" : [ArtifactBucket, "Arn"] }
+              - !Sub "${ArtifactBucket.Arn}/*"
+            
+  CodebuildRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /examplecompany/
+      Description: Role For Codebuild
+      RoleName: examplecompanyCodeBuildRole
+      Tags: 
+        - Key: "ApplicationID"
+          Value: "1"
+        - Key: "Classification"
+          Value: "Confidential"
+        - Key: "SupportTeam"
+          Value: "devops@examplecompany.io"
+
+  CodeBuildPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: 
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: !Sub  "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/codebuild/*"
+          - Effect: Allow
+            Action: 
+               - "S3:*" #FIX THIS I NEED TO DO SOME RESEARCH HERE.
+            Resource: 
+              - {"Fn::GetAtt" : [ArtifactBucket, "Arn"] }
+              - !Sub "${ArtifactBucket.Arn}/*"
+          - Effect: Allow
+            Action: "codebuild:*"
+            Resource: "*"
+          - Effect: Allow
+            Action: 
+              - "ec2:DescribeSecurityGroups"
+              - "ec2:DescribeSubnets"
+            Resource: "*"
+          - Effect: Allow
+            Action: 
+              - "kms:Decrypt"
+              - "kms:Encrypt"
+              - "kms:ReEncrypt*"  
+              - "kms:GenerateDataKey*"
+              - "kms:DescribeKey"
+              - "kms:List*"
+            Resource: {"Fn::GetAtt" : [ArtifactBucketKey, "Arn"] }
+      PolicyName: examplecompanyCodeBuildPolicy
+      Roles: 
+        - !Ref CodebuildRole
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /examplecompany/
+      Description: Role For CodePipeline
+      RoleName: SSOCodePipelineRole
+      Tags: 
+        - Key: "ApplicationID"
+          Value: "1"
+        - Key: "Classification"
+          Value: "Confidential"
+        - Key: "SupportTeam"
+          Value: "devops@examplecompany.io"
+
+
+  CodePipelinePolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: 
+                - "s3:PutObject"
+                - "s3:GetObject"
+                - "s3:GetObjectVersion"
+                - "s3:GetBucketAcl"
+                - "s3:GetBucketLocation"
+                - "s3:GetObjectVersion"
+                - "s3:PutObjectAcl"
+                - "s3:GetBucketVersioning"
+            Resource: 
+              - {"Fn::GetAtt" : [ArtifactBucket, "Arn"] }
+              - !Sub "${ArtifactBucket.Arn}/*"
+          - Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+              - cloudformation:DescribeStacks
+              - cloudformation:DeleteStack
+              - cloudformation:UpdateStack
+              - cloudformation:CreateChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:DeleteChangeSet
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ValidateTemplate
+            Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${MasterAccountID}:stack/examplecompany*"
+          - Effect: Allow
+            Action:
+              - codebuild:BatchGetBuilds
+              - codebuild:StartBuild
+              - codebuild:StopBuild
+            Resource: "*"
+          - Effect: Allow
+            Action: "codepipeline:*"
+            Resource: "*"
+          - Effect: Allow
+            Action: "sts:AssumeRole"
+            Resource: !Sub "arn:${AWS::Partition}:iam::${MasterAccountID}:role/examplecompany/ExampleCompanyMasterDevopsRole"
+          - Effect: Allow
+            Action: 
+              - "codestar-connections:UseConnection"
+              - "codestar-connections:GetConnection"
+            Resource: !Ref GithubSSOConection
+          - Effect: Allow
+            Action: 
+              - "kms:Decrypt"
+              - "kms:Encrypt"
+              - "kms:ReEncrypt*"  
+              - "kms:GenerateDataKey*"
+              - "kms:DescribeKey"
+              - "kms:List*"
+            Resource: {"Fn::GetAtt" : [ArtifactBucketKey, "Arn"] }
+      PolicyName: examplecompanyCodePipelinePolicy
+      Roles: 
+        - !Ref CodePipelineRole
+
+
+  ArtifactBucketName:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: SSM Parameter for Artifact Bucket Name
+      Name: /examplecompany/S3/SSO/ArtifactBucketName
+      Tags: 
+        ApplicationID: "1"
+        Classification: "Confidential"
+        SupportTeam: "devops@examplecompany.io"
+      Type: String
+      Value: !Ref ArtifactBucket
+
+  ArtifactBucketArn:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: SSM Parameter for Artifact Bucket Arn
+      Name: /examplecompany/S3/SSO/ArtifactBucketArn
+      Tags: 
+        ApplicationID: "1"
+        Classification: "Confidential"
+        SupportTeam: "devops@examplecompany.io"
+      Type: String
+      Value: {"Fn::GetAtt" : [ArtifactBucket, "Arn"] }
+
+  CodebuildRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: SSM Parameter for Codebuild Role Arn
+      Name: /examplecompany/IAM/SSO/CodeBuildRoleArn
+      Tags: 
+        ApplicationID: "1" 
+        Classification: Confidential
+        SupportTeam: "devops@examplecompany.io" 
+      Type: String
+      Value: {"Fn::GetAtt" : [CodebuildRole, "Arn"] }
+
+  CodePipelineRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: SSM Parameter for Codebuild Role Arn
+      Name: /examplecompany/IAM/SSO/CodePipelineRoleArn
+      Tags: 
+        ApplicationID: "1" 
+        Classification: Confidential
+        SupportTeam: "devops@examplecompany.io" 
+      Type: String
+      Value: {"Fn::GetAtt" : [CodePipelineRole, "Arn"] }
+
+  CodeStarConnectionArn:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: SSM Parameter for CodeStar Connection Arn
+      Name: /examplecompany/Github/CodeStarConnectionArn
+      Tags: 
+        ApplicationID: "1" 
+        Classification: Confidential
+        SupportTeam: "devops@examplecompany.io"  
+      Type: String
+      Value: !Ref GithubSSOConection
+
+
+  ArtifactBucketKMSKeyID:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: Artifact Bucket KMS KEY ID
+      Name: /examplecompany/KMS/SSO/ArtifactBucketKeyID
+      Tags: 
+        ApplicationID: "1" 
+        Classification: Confidential
+        SupportTeam: "devops@examplecompany.io"  
+      Type: String
+      Value:  {"Fn::GetAtt" : [ArtifactBucketKey, "KeyId"] }
+
+  ArtifactBucketKMSKeyArn:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: Artifact Bucket KMS KEY ID
+      Name: /examplecompany/KMS/SSO/ArtifactBucketKeyArn
+      Tags: 
+        ApplicationID: "1" 
+        Classification: Confidential
+        SupportTeam: "devops@examplecompany.io"  
+      Type: String
+      Value:  {"Fn::GetAtt" : [ArtifactBucketKey, "Arn"] }
+     
+
+
+
+
+    
+

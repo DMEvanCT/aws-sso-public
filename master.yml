@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Devops Assume Role into Account 
+
+
+Parameters: 
+  CodePipelineAccountId:
+    Type: String
+    Description: Account ID of the Devops Account
+    Default: 123456789012
+  ArtifactBucketArn:  
+    Type: String
+    Description: Devops Artifact Bucket
+    Default: "arn:aws:s3:::devopsautomationrole-artifactbucket-abcdefg"
+  CodePiplineKMSKeyID:
+    Type: String
+    Description: The key id of the sso s3 bucket key
+    Default: 123456ad-3b12-4e22-be03-12345oea
+
+
+Resources: 
+  DevopsAutomationRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:  !Sub "arn:aws:iam::${CodePipelineAccountId}:root"
+            Action: "sts:AssumeRole"
+            Condition: 
+              ArnLike: 
+                "aws:PrincipalArn":
+                  - !Sub "arn:${AWS::Partition}:iam::${CodePipelineAccountId}:role/examplecompany/SSOCodePipelineRole"
+      Path: /examplecompany/
+      ManagedPolicyArns: 
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AWSCloudFormationFullAccess
+      Description: Role For Devops account to assume into this account
+      RoleName: ExampleCompanyMasterDevopsRole
+      Tags: 
+        - Key: "ApplicationID"
+          Value: "1"
+        - Key: "Classification"
+          Value: "Confidential"
+        - Key: "SupportTeam"
+          Value: "devops@examplecompany.io"
+
+  DevopsAutomationPolicy:
+    Type: AWS::IAM::Policy
+    Properties:  
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: 
+                - "s3:PutObject"
+                - "s3:GetObject"
+                - "s3:GetObjectVersion"
+                - "s3:GetBucketAcl"
+                - "s3:GetBucketLocation"
+                - "s3:GetObjectVersion"
+                - "s3:PutObjectAcl"
+                - "s3:GetBucketVersioning"
+            Resource: 
+              - !Ref ArtifactBucketArn
+              - !Sub "${ArtifactBucketArn}/*"
+          - Effect: Allow
+            Action: 
+              - "iam:PassRole"
+              - "iam:GetRole"
+            Resource: {"Fn::GetAtt" : [CloudformationRole, "Arn"] }
+          - Effect: Allow
+            Action: 
+              - "kms:Decrypt"
+              - "kms:Encrypt"
+              - "kms:GenerateDataKey"
+              - "kms:List*"
+            Resource:  !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${CodePipelineAccountId}:key/${CodePiplineKMSKeyID}"
+      PolicyName: ExampleCompanyDevopsAutomationPolicy 
+      Roles: 
+        - !Ref DevopsAutomationRole
+
+  CloudformationRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /examplecompany/
+      Description: Role For Cloudformation
+      RoleName: ExampleCompanyCloudformationRole
+      ManagedPolicyArns: 
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess
+      Tags: 
+        - Key: "ApplicationID"
+          Value: "1"
+        - Key: "Classification"
+          Value: "Confidential"
+        - Key: "SupportTeam"
+          Value: "devops@examplecompany.io"
