@@ -38,7 +38,7 @@ You can pair both these tools together to get an automated experience inside of 
 
 Replace for your company
 ```bash
-find ./ -exec sed -i 's/devops@examplecompany.io/YourCompanyName/g' {} \;
+find ./ -exec sed -i 's/devops@examplecompany.io/yourcompany@examplecompany.io/g' {} \;
 find ./ -exec sed -i 's/examplecompany/yourcompanyname/g' {} \;
 find ./ -exec sed -i 's/ExampleCompany/YourCompanyName/g' {} \;
 ```
