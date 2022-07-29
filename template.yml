@@ -4,12 +4,10 @@ Description: SSO Configuration ExampleCompany
 Parameters:
   SSOInstanceARN:
     Type: String
-    Description: The SSO instance ARN 
-    Default: "arn:aws:sso:::instance/ssoins-12345678"
+    Description: The SSO instance ARN. EX arn:aws:sso:::instance/ssoins-12345678.
   ArtifactBucketName: 
     Type: String
-    Description: The name of the bucket to store the artifacts in
-    Default: "codepipleine-sso-artifactbucket-1234fdsas"
+    Description: The name of the bucket to store the artifacts in. EX codepipleine-sso-artifactbucket-1234fdsas.
 
 
 Resources:

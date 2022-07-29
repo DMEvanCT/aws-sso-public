@@ -6,15 +6,12 @@ Parameters:
   CodePipelineAccountId:
     Type: String
     Description: Account ID of the Devops Account
-    Default: 123456789012
   ArtifactBucketArn:  
     Type: String
-    Description: Devops Artifact Bucket
-    Default: "arn:aws:s3:::devopsautomationrole-artifactbucket-abcdefg"
+    Description: Devops Artifact Bucket Ex arn:aws:s3:::devopsautomationrole-artifactbucket-abcdefg"
   CodePiplineKMSKeyID:
     Type: String
-    Description: The key id of the sso s3 bucket key
-    Default: 123456ad-3b12-4e22-be03-12345oea
+    Description: The key id of the sso s3 bucket key. Ex 123456ad-3b12-4e22-be03-12345oea.
 
 
 Resources: 

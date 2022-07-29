@@ -9,7 +9,6 @@ Parameters:
   MasterAccountID:
     Type: String
     Description: Root account for AWS or Account where SSO sits
-    Default: 1234567890
   ProjectName:
     Type: String
     Description: Project Name for the Pipeline
