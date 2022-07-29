@@ -2,7 +2,7 @@
 Single Sign on configuration / Automation
 
 # AWS SSO Automation?
-This is an example repo for AWS SSO Permision Set Automation. It allows you to create permission sets
+This is an example repo for AWS SSO permission set automation. It allows you to create permission sets
 and deploy them automaticly through pipelines
 
 Benifits of this
