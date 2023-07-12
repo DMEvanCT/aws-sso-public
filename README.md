@@ -31,7 +31,7 @@ Note: Codestar will automaticly trigger the pipeline when you push to your repos
 
 Architecture
 
-![PipelineAutomation](./AWS-SSO-Pipeline.png)
+![PipelineAutomation](./SimpleSSO.png)
 
 
 ### Full Automation Pair
